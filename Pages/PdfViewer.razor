@@ -1,0 +1,213 @@
+@page "/pdfviewer"
+@using Microsoft.JSInterop
+@using System.Net.Http.Json
+@using System.Text.Json
+@inject IJSRuntime JS
+@inject HttpClient Http
+@inject NavigationManager Nav
+
+<h3 class="text-2xl font-semibold mb-4">PDF Viewer</h3>
+@if (isLoading)
+{
+    <div class="flex items-center gap-3">
+        <div class="w-7 h-7 border-4 border-gray-200 border-l-blue-600 rounded-full animate-spin" aria-hidden="true"></div>
+        <div class="text-sm text-gray-700">Loading catalog...</div>
+    </div>
+}
+else if (!string.IsNullOrEmpty(loadError))
+{
+    <div class="bg-red-50 border border-red-200 text-red-800 p-3 rounded text-sm">@((MarkupString)loadError.Replace("\n","<br/>"))</div>
+}
+else if (catalog == null)
+{
+    <p class="text-sm text-gray-600">No catalog available.</p>
+}
+else
+{
+    <div class="bg-blue-50 border-l-4 border-blue-600 p-4 rounded mb-4">
+        <div class="font-medium">How to use</div>
+        <div class="text-sm text-gray-700">Select a class below, then click a subject to open the PDF. PDFs are watermarked with the viewing user and timestamp.</div>
+    </div>
+
+    <div class="flex gap-2 mb-4 items-start">
+        <select class="select select-bordered w-56" @bind="selectedClassName">
+            <option value="">All classes</option>
+            @foreach(var c in catalog.Classes)
+            {
+                <option value="@c.Name">@c.Name</option>
+            }
+        </select>
+
+        <select class="select select-bordered w-64" @bind="selectedSubjectPdf">
+            <option value="">All subjects</option>
+            @foreach(var s in SubjectsForSelectedClass)
+            {
+                <option value="@s.Pdf">@s.Name</option>
+            }
+        </select>
+
+        <input class="flex-1 px-3 py-2 border rounded-md text-sm" placeholder="Filter classes or subjects" @bind="filter" @bind:event="oninput" />
+
+        <button class="btn btn-primary" @onclick="OpenSelected">Open</button>
+
+        <button class="px-3 py-2 border rounded-md text-sm text-gray-600 hover:bg-gray-100" @onclick="() => { filter = string.Empty; selectedClassName = string.Empty; selectedSubjectPdf = string.Empty; }">Clear</button>
+    </div>
+
+    <div class="text-xs text-gray-500 mt-2">Classes: @(catalog?.Classes?.Count ?? 0) · Subjects (selected): @SubjectsForSelectedClass.Count()</div>
+
+    <div class="bg-white shadow-sm border p-4 rounded">
+        @if (!FilteredClasses.Any())
+        {
+            <div class="text-sm text-gray-600">No results for "@filter"</div>
+        }
+        else
+        {
+            @foreach(var cls in FilteredClasses)
+            {
+                <div class="mb-4">
+                    <div class="font-semibold text-sm text-gray-800">@cls.Name</div>
+                    <div class="mt-2 flex flex-wrap gap-2">
+                        @foreach(var subj in cls.Subjects)
+                        {
+                            <button class="px-3 py-1 bg-white border rounded text-sm hover:bg-gray-50" @onclick="() => OpenPdf(subj.Pdf)">@subj.Name</button>
+                        }
+                    </div>
+                </div>
+            }
+        }
+    </div>
+
+    <div class="mt-3 text-sm text-gray-500">Last opened: @lastOpened</div>
+}
+
+<hr class="my-4" />
+<div id="pdfContainer" class="w-full"></div>
+
+@code {
+    Catalog? catalog;
+    bool isLoading = true;
+    string? loadError;
+    string filter = string.Empty;
+    private string _selectedClassName = string.Empty;
+    private string selectedClassName
+    {
+        get => _selectedClassName;
+        set { _selectedClassName = value; selectedSubjectPdf = string.Empty; }
+    }
+    string selectedSubjectPdf = string.Empty;
+    string lastOpened = "never";
+
+    protected override async Task OnInitializedAsync()
+    {
+        isLoading = true;
+        loadError = null;
+        try
+        {
+            var catalogJson = @"{
+  ""classes"": [
+    {
+      ""name"": ""Class 1"",
+      ""subjects"": [
+        {
+          ""name"": ""Math"",
+          ""pdf"": ""/pdfs/class1/math.pdf""
+        },
+        {
+          ""name"": ""Science"",
+          ""pdf"": ""/pdfs/class1/science.pdf""
+        }
+      ]
+    },
+    {
+      ""name"": ""Class 2"",
+      ""subjects"": [
+        {
+          ""name"": ""Math"",
+          ""pdf"": ""/pdfs/class2/math.pdf""
+        },
+        {
+          ""name"": ""Science"",
+          ""pdf"": ""/pdfs/class1/science.pdf""
+        }
+      ]
+    }
+  ]
+}
+";
+            var opts = new JsonSerializerOptions { PropertyNameCaseInsensitive = true };
+            catalog = JsonSerializer.Deserialize<Catalog>(catalogJson, opts);
+        }
+        catch (Exception ex)
+        {
+            loadError = $"Failed to load catalog: {ex.Message}";
+            Console.Error.WriteLine(ex);
+            try
+            {
+                var logs = await JS.InvokeAsync<string[]>("app.getLogs");
+                if (logs != null && logs.Length > 0)
+                {
+                    loadError += "\nConsole logs:\n" + string.Join("\n", logs);
+                }
+            }
+            catch { }
+        }
+        finally
+        {
+            isLoading = false;
+            StateHasChanged();
+        }
+    }
+
+    IEnumerable<SubjectItem> SubjectsForSelectedClass =>
+    catalog == null ? Enumerable.Empty<SubjectItem>() :
+        (string.IsNullOrEmpty(selectedClassName)
+            ? catalog.Classes.SelectMany(c => c.Subjects)
+            : catalog.Classes.FirstOrDefault(c => c.Name == selectedClassName)?.Subjects ?? Enumerable.Empty<SubjectItem>());
+
+
+    private void OpenSelected()
+    {
+        if (!string.IsNullOrEmpty(selectedSubjectPdf))
+        {
+            _ = OpenPdf(selectedSubjectPdf);
+            return;
+        }
+        if (!string.IsNullOrEmpty(selectedClassName))
+        {
+            var cls = catalog?.Classes.FirstOrDefault(c => c.Name == selectedClassName);
+            var subj = cls?.Subjects.FirstOrDefault(s => string.IsNullOrWhiteSpace(filter) || s.Name.Contains(filter, StringComparison.OrdinalIgnoreCase));
+            if (subj != null) _ = OpenPdf(subj.Pdf);
+        }
+    }
+
+    IEnumerable<ClassItem> FilteredClasses
+    {
+        get
+        {
+            if (catalog == null) return Enumerable.Empty<ClassItem>();
+            if (string.IsNullOrWhiteSpace(filter)) return catalog.Classes;
+            var q = catalog.Classes
+                .Select(c => new ClassItem
+                {
+                    Name = c.Name,
+                    Subjects = c.Name.Contains(filter, StringComparison.OrdinalIgnoreCase)
+                        ? c.Subjects
+                        : c.Subjects.Where(s => s.Name.Contains(filter, StringComparison.OrdinalIgnoreCase)).ToList()
+                })
+                .Where(c => c.Name.Contains(filter, StringComparison.OrdinalIgnoreCase) || c.Subjects.Any())
+                .ToList();
+            return q;
+        }
+    }
+
+    private async Task OpenPdf(string url)
+    {
+        if (string.IsNullOrEmpty(url)) return;
+        lastOpened = DateTime.Now.ToString("G");
+        await JS.InvokeVoidAsync("pdfViewer.loadPdf", url, "DemoUser");
+    }
+
+    public class Catalog { public List<ClassItem> Classes { get; set; } = new(); }
+    public class ClassItem { public string Name { get; set; } = ""; public List<SubjectItem> Subjects { get; set; } = new(); }
+    public class SubjectItem { public string Name { get; set; } = ""; public string Pdf { get; set; } = ""; }
+}

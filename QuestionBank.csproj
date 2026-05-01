@@ -1,0 +1,21 @@
+﻿<Project Sdk="Microsoft.NET.Sdk.Razor">
+
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net11.0-windows</TargetFramework>
+    <Nullable>enable</Nullable>
+    <UseWindowsForms>true</UseWindowsForms>
+    <ImplicitUsings>enable</ImplicitUsings>
+  </PropertyGroup>
+
+	<ItemGroup>
+		<PackageReference Include="Microsoft.AspNetCore.Components.WebView" Version="11.0.0-preview.3.26207.106" />
+		<PackageReference Include="Microsoft.AspNetCore.Components.WebView.WindowsForms" Version="11.0.0-preview.3.26203.7" />
+		<PackageReference Include="Microsoft.Extensions.Http" Version="10.0.7" />
+	</ItemGroup>
+
+  <ItemGroup>
+    <Content Remove="wwwroot\pdfs\**\*.docx" />
+    <None Include="wwwroot\pdfs\**\*.docx" />
+  </ItemGroup>
+</Project>

@@ -1,0 +1,22 @@
+@namespace QuestionBank.Shared
+@inherits LayoutComponentBase
+<header class="app-header px-3 py-2 d-flex align-items-center justify-content-between">
+    <div>
+        <h4 class="mb-0">Question Bank</h4>
+        <small class="text-muted">Browse and view PDFs with watermarking and simple protections</small>
+    </div>
+    <div class="text-end">
+        <div class="status-pill">Ready</div>
+        <div class="small text-muted">@DateTime.Now.ToString("g")</div>
+    </div>
+</header>
+<div class="flex h-[calc(100vh-128px)]">
+  <aside class="w-72 bg-base-100 border-r p-4 overflow-auto">
+    <NavMenu />
+  </aside>
+  <main class="flex-1 p-6 overflow-auto bg-gray-50">
+    @Body
+  </main>
+</div><footer class="app-footer p-3 small text-muted text-center">
+    © Question Bank — Use responsibly. PDFs are watermarked while viewing.
+</footer>

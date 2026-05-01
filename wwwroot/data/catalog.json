@@ -1,0 +1,30 @@
+{
+  ""classes"": [
+    {
+      ""name"": ""Class 1"",
+      ""subjects"": [
+        {
+          ""name"": ""Math"",
+          ""pdf"": ""/pdfs/class1/math.pdf""
+        },
+        {
+          ""name"": ""Science"",
+          ""pdf"": ""/pdfs/class1/science.pdf""
+        }
+      ]
+    },
+    {
+      ""name"": ""Class 2"",
+      ""subjects"": [
+        {
+          ""name"": ""Math"",
+          ""pdf"": ""/pdfs/class2/math.pdf""
+        },
+        {
+          ""name"": ""Science"",
+          ""pdf"": ""/pdfs/class1/science.pdf""
+        }
+      ]
+    }
+  ]
+}
